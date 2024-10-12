@@ -7,6 +7,7 @@ use rand::Rng;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime};
 use serde_json::{json, Value};
 
 // const ADDR: Ipv4Addr = Ipv4Addr::LOCALHOST;
@@ -50,11 +51,12 @@ pub struct Node {
     pub hash_value: u64,
     pub prev_connection: Option<TcpStream>,
     pub next_connection: Option<TcpStream>,
+    pub deadline: SystemTime,
 }
 
 impl Node {
     pub fn new(index: u64, port: u64) -> Self {
-        Self { index, port, balance: 10, deposit: 0, pre_image: 0, hash_value: 0, prev_connection: None, next_connection: None }
+        Self { index, port, balance: 10, deposit: 0, pre_image: 0, hash_value: 0, prev_connection: None, next_connection: None, deadline: SystemTime::now() }
     }
 }
 
@@ -181,6 +183,7 @@ fn htlc(node: &mut Node, hash_value: u64, amount: u64, time_due: u64) {
         node.balance -= amount;
         node.deposit += amount;
         node.hash_value = hash_value;
+        node.deadline = SystemTime::now()+Duration::new(time_due, 0);
         send_message_to_next(node, htlc_msg);
     }
 }
@@ -210,7 +213,9 @@ fn handle_claim(node: &mut Node, json_msg: Value, index: u64) {
             if index != 0 {
                 claim(node, pre_image);
             }
-            pay_deposit(node);
+            if node.deadline > SystemTime::now(){
+                pay_deposit(node);
+            }
         }
     }
 }
